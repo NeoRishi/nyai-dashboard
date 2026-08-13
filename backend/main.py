@@ -2,11 +2,11 @@
 NyAI Dashboard API - FastAPI backend wrapping the NyAI reasoning engine.
 """
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import List, Optional
 from datetime import datetime, timedelta
 import os
@@ -19,7 +19,7 @@ app = FastAPI(title="NyAI Dashboard API", version="1.0.0")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
-    allow_credentials=True,
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -31,7 +31,7 @@ class EvidenceInput(BaseModel):
     content: str
     pramana_type: str  # pratyaksha, anumana, shabda, upamana
     source: str = ""
-    tags: List[str] = []
+    tags: List[str] = Field(default_factory=list)
     age_days: int = 0
 
 
@@ -73,16 +73,6 @@ def list_scenarios():
     ]}
 
 
-@app.get("/api/scenarios/{scenario_id}")
-def run_single_scenario(scenario_id: str):
-    """Run a specific scenario through both agents."""
-    scenarios = get_scenarios()
-    scenario = next((s for s in scenarios if s["id"] == scenario_id), None)
-    if not scenario:
-        return {"error": f"Scenario '{scenario_id}' not found"}
-    return run_scenario(scenario)
-
-
 @app.get("/api/scenarios/all/compare")
 def compare_all():
     """Run all scenarios and return comparison table."""
@@ -96,6 +86,16 @@ def compare_all():
             "agreement": len(results) - divergence_count,
         },
     }
+
+
+@app.get("/api/scenarios/{scenario_id}")
+def run_single_scenario(scenario_id: str):
+    """Run a specific scenario through both agents."""
+    scenarios = get_scenarios()
+    scenario = next((s for s in scenarios if s["id"] == scenario_id), None)
+    if not scenario:
+        raise HTTPException(status_code=404, detail=f"Scenario '{scenario_id}' not found")
+    return run_scenario(scenario)
 
 
 @app.post("/api/evaluate")
